@@ -57,9 +57,7 @@ class Minecraft_Status:
                 f"https://api.mcstatus.io/v2/status/java/{self.MINECRAFT_SERVER_ADDRESS}",
                 f"https://api.mcsrvstat.us/2/{self.MINECRAFT_SERVER_ADDRESS}",
                 f"https://mcapi.us/server/status?ip={ip}&port={port}",
-                f"https://api.minetools.eu/ping/{ip}/{port}",
-                # Add a simple test to see if we can reach anything
-                f"https://api.mcsrvstat.us/2/mc.hypixel.net"
+                f"https://api.minetools.eu/ping/{ip}/{port}"
             ]
             
             # Try each API until one works
