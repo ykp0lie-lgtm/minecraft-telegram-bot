@@ -104,12 +104,25 @@ class ImageFeatures:
             
             # Create blank canvas
             composite = Image.new('RGB', (images_per_row * 110, rows * 110), color='white')
+            draw = ImageDraw.Draw(composite)
             
-            # Paste images
-            for i, img in enumerate(user_images):
+            # Try to add usernames under pictures
+            try:
+                font = ImageFont.load_default()
+            except:
+                font = None
+            
+            # Paste images and add usernames
+            for i, (img, username) in enumerate(zip(user_images, usernames[:len(user_images)])):
                 row = i // images_per_row
                 col = i % images_per_row
-                composite.paste(img, (col * 110 + 5, row * 110 + 5))
+                x = col * 110 + 5
+                y = row * 110 + 5
+                composite.paste(img, (x, y))
+                
+                # Add username under picture
+                if font:
+                    draw.text((x, y + 105), username[:10], fill='black', font=font)
             
             # Convert to bytes for Telegram
             img_bytes = io.BytesIO()
