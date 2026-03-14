@@ -1,5 +1,6 @@
 import requests
 import logging
+import time
 from config import Config
 
 # Set up logging
@@ -34,102 +35,121 @@ class Minecraft_Status:
         logger.info(f"Minecraft_Status initialized with address: {self.MINECRAFT_SERVER_ADDRESS}")
     
     def _get_response_json(self):
-        logger.info("\n" + "="*60)
-        logger.info("STARTING API CALLS")
-        logger.info(f"Server address: {self.MINECRAFT_SERVER_ADDRESS}")
-        
-        # Split address for APIs that need separate IP and port
-        if ':' in self.MINECRAFT_SERVER_ADDRESS:
-            ip, port = self.MINECRAFT_SERVER_ADDRESS.split(':')
-        else:
-            ip = self.MINECRAFT_SERVER_ADDRESS
-            port = '25565'
-        
-        logger.info(f"Split into IP: {ip}, Port: {port}")
-        
-        # List of APIs to try in order
-        apis = [
-            f"https://api.mcstatus.io/v2/status/java/{self.MINECRAFT_SERVER_ADDRESS}",
-            f"https://api.mcsrvstat.us/2/{self.MINECRAFT_SERVER_ADDRESS}",
-            f"https://mcapi.us/server/status?ip={ip}&port={port}",
-            f"https://api.minetools.eu/ping/{ip}/{port}",
-            # Add a simple test to see if we can reach anything
-            f"https://api.mcsrvstat.us/2/mc.hypixel.net"
-        ]
-        
-        # Try each API until one works
-        for i, api_url in enumerate(apis):
-            try:
-                logger.info(f"\n--- TRYING API #{i+1} ---")
-                logger.info(f"URL: {api_url}")
-                
-                # Make the request with a timeout
-                response = requests.get(api_url, timeout=10)
-                logger.info(f"Status code: {response.status_code}")
-                logger.info(f"Response headers: {dict(response.headers)}")
-                logger.info(f"First 200 chars of response: {response.text[:200]}")
-                
-                if response.status_code == 200:
-                    try:
-                        response_json = response.json()
-                        logger.info(f"JSON parsed successfully. Keys: {list(response_json.keys())}")
-                        
-                        # Check if this is the test API (Hypixel)
-                        if "mc.hypixel.net" in api_url:
-                            logger.info(f"TEST API RESULT (Hypixel): online={response_json.get('online')}")
-                            logger.info("✅ This proves the API itself works and Railway has internet!")
-                            continue
-                        
-                        normalized_data = self._normalize_api_response(api_url, response_json)
-                        
-                        if normalized_data:
-                            logger.info(f"Normalized data: {normalized_data}")
-                            if normalized_data.get("online") is True:
-                                logger.info(f"✅ SUCCESS! API #{i+1} works!")
-                                return normalized_data
-                            else:
-                                logger.info(f"❌ API #{i+1} reports server offline: {normalized_data.get('error')}")
-                        else:
-                            logger.info(f"❌ API #{i+1} normalization failed")
-                            
-                    except Exception as json_err:
-                        logger.error(f"JSON parse error: {str(json_err)}")
-                else:
-                    logger.info(f"❌ API #{i+1} returned non-200 status")
-                    
-            except requests.exceptions.Timeout:
-                logger.error(f"❌ API #{i+1} timed out after 10 seconds")
-            except requests.exceptions.ConnectionError as e:
-                logger.error(f"❌ API #{i+1} connection error: {str(e)}")
-            except Exception as e:
-                logger.error(f"❌ API #{i+1} failed with error: {str(e)}")
-                import traceback
-                logger.error(traceback.format_exc())
-        
-        # If all APIs fail, return a standardized offline response
-        logger.error("\n❌ ALL APIS FAILED - Returning offline status")
-        logger.info("Performing final internet connectivity check...")
         try:
-            test = requests.get("https://api.mcsrvstat.us/2/mc.hypixel.net", timeout=5)
-            logger.info(f"Internet check status: {test.status_code}")
-            if test.status_code == 200:
-                logger.info("✅ Internet is working, APIs just don't like your server")
-                logger.info(f"Test response: {test.text[:200]}")
+            logger.info("\n" + "="*60)
+            logger.info("STARTING API CALLS")
+            logger.info(f"Server address: {self.MINECRAFT_SERVER_ADDRESS}")
+            
+            # Small delay to avoid rate limiting
+            time.sleep(0.5)
+            
+            # Split address for APIs that need separate IP and port
+            if ':' in self.MINECRAFT_SERVER_ADDRESS:
+                ip, port = self.MINECRAFT_SERVER_ADDRESS.split(':')
             else:
-                logger.error(f"❌ Internet check returned {test.status_code}")
+                ip = self.MINECRAFT_SERVER_ADDRESS
+                port = '25565'
+            
+            logger.info(f"Split into IP: {ip}, Port: {port}")
+            
+            # List of APIs to try in order
+            apis = [
+                f"https://api.mcstatus.io/v2/status/java/{self.MINECRAFT_SERVER_ADDRESS}",
+                f"https://api.mcsrvstat.us/2/{self.MINECRAFT_SERVER_ADDRESS}",
+                f"https://mcapi.us/server/status?ip={ip}&port={port}",
+                f"https://api.minetools.eu/ping/{ip}/{port}",
+                # Add a simple test to see if we can reach anything
+                f"https://api.mcsrvstat.us/2/mc.hypixel.net"
+            ]
+            
+            # Try each API until one works
+            for i, api_url in enumerate(apis):
+                try:
+                    logger.info(f"\n--- TRYING API #{i+1} ---")
+                    logger.info(f"URL: {api_url}")
+                    
+                    # Make the request with a timeout
+                    response = requests.get(api_url, timeout=10)
+                    logger.info(f"Status code: {response.status_code}")
+                    logger.info(f"Response headers: {dict(response.headers)}")
+                    logger.info(f"First 200 chars of response: {response.text[:200]}")
+                    
+                    if response.status_code == 200:
+                        try:
+                            response_json = response.json()
+                            logger.info(f"JSON parsed successfully. Keys: {list(response_json.keys())}")
+                            
+                            # Check if this is the test API (Hypixel)
+                            if "mc.hypixel.net" in api_url:
+                                logger.info(f"TEST API RESULT (Hypixel): online={response_json.get('online')}")
+                                logger.info("✅ This proves the API itself works and Railway has internet!")
+                                continue
+                            
+                            normalized_data = self._normalize_api_response(api_url, response_json)
+                            
+                            if normalized_data:
+                                logger.info(f"Normalized data: {normalized_data}")
+                                if normalized_data.get("online") is True:
+                                    logger.info(f"✅ SUCCESS! API #{i+1} works!")
+                                    return normalized_data
+                                else:
+                                    logger.info(f"❌ API #{i+1} reports server offline: {normalized_data.get('error')}")
+                            else:
+                                logger.info(f"❌ API #{i+1} normalization failed")
+                                
+                        except Exception as json_err:
+                            logger.error(f"JSON parse error: {str(json_err)}")
+                    else:
+                        logger.info(f"❌ API #{i+1} returned non-200 status")
+                        
+                except requests.exceptions.Timeout:
+                    logger.error(f"❌ API #{i+1} timed out after 10 seconds")
+                except requests.exceptions.ConnectionError as e:
+                    logger.error(f"❌ API #{i+1} connection error: {str(e)}")
+                except Exception as e:
+                    logger.error(f"❌ API #{i+1} failed with error: {str(e)}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+            
+            # If all APIs fail, return a standardized offline response
+            logger.error("\n❌ ALL APIS FAILED - Returning offline status")
+            logger.info("Performing final internet connectivity check...")
+            try:
+                test = requests.get("https://api.mcsrvstat.us/2/mc.hypixel.net", timeout=5)
+                logger.info(f"Internet check status: {test.status_code}")
+                if test.status_code == 200:
+                    logger.info("✅ Internet is working, APIs just don't like your server")
+                    logger.info(f"Test response: {test.text[:200]}")
+                else:
+                    logger.error(f"❌ Internet check returned {test.status_code}")
+            except Exception as e:
+                logger.error(f"❌ Internet check FAILED: {str(e)}")
+            
+            return {
+                "online": False,
+                "players": {
+                    "online": 0,
+                    "max": 0,
+                    "list": []
+                },
+                "version": "Unknown",
+                "error": f"Could not connect to any status API for {self.MINECRAFT_SERVER_ADDRESS}"
+            }
+            
         except Exception as e:
-            logger.error(f"❌ Internet check FAILED: {str(e)}")
-        
-        return {
-            "online": False,
-            "players": {
-                "online": 0,
-                "max": 0,
-                "list": []
-            },
-            "version": "Unknown",
-            "error": f"Could not connect to any status API for {self.MINECRAFT_SERVER_ADDRESS}"
-        }
+            logger.error(f"CRITICAL ERROR in _get_response_json: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {
+                "online": False,
+                "players": {
+                    "online": 0,
+                    "max": 0,
+                    "list": []
+                },
+                "version": "Unknown",
+                "error": f"Internal error: {str(e)}"
+            }
 
     def _normalize_api_response(self, api_url, response_json):
         """
@@ -224,3 +244,33 @@ class Minecraft_Status:
             "status": "success",
             "online_users_names": player_list
         }
+    
+    def get_server_status(self):
+        """Get general server status information."""
+        logger.info("get_server_status called")
+        try:
+            response_json = self._get_response_json()
+            
+            if not response_json.get("online", False):
+                return {
+                    "status": "error",
+                    "message": "Server is offline",
+                    "max_players": 0,
+                    "version": "Unknown"
+                }
+            
+            return {
+                "status": "success",
+                "online": True,
+                "max_players": response_json.get("players", {}).get("max", 0),
+                "version": response_json.get("version", "Unknown")
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in get_server_status: {e}")
+            return {
+                "status": "error",
+                "message": str(e),
+                "max_players": 0,
+                "version": "Unknown"
+            }
