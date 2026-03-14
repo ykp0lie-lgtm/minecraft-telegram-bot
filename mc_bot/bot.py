@@ -23,36 +23,59 @@ async def number_of_online_players(update: Update, context: ContextTypes.DEFAULT
     """Send the number of online players."""
     logger.info(f"Received /numberplayers command from {update.message.from_user.username}")
     online_users_count = Minecraft_Status().get_online_users_count()
+    
     if online_users_count.get("status") == "error":
         logger.error(f"Error getting online users count: {online_users_count.get('message')}")
         await update.message.reply_text(online_users_count.get("message"))
         return
     
-    gifs = FileManager().get_gifs(online_users_count.get("online_users_count"))
-    await update.message.reply_text(f'There are {online_users_count.get("online_users_count")} online players in minecraft.')
-    if gifs != []: 
-        respone_gif_path = choice(gifs)
-        await update.message.reply_animation(open(respone_gif_path, "rb"))
+    count = online_users_count.get("online_users_count", 0)
+    await update.message.reply_text(f'There are {count} online players in minecraft.')
+    
+    # Try to send GIFs
+    try:
+        gifs = FileManager().get_gifs(count)
+        if gifs:
+            response_gif_path = choice(gifs)
+            with open(response_gif_path, "rb") as gif_file:
+                await update.message.reply_animation(gif_file)
+    except Exception as e:
+        logger.error(f"Error sending GIF: {e}")
 
 async def names_of_online_players(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send the names of online players."""
     logger.info(f"Received /players command from {update.message.from_user.username}")
     online_users_names = Minecraft_Status().get_online_users_names()
+    
     if online_users_names.get("status") == "error":
         logger.error(f"Error getting online users names: {online_users_names.get('message')}")
         await update.message.reply_text(online_users_names.get("message"))
         return
     
-    if online_users_names.get("online_users_names") == []:
+    players_data = online_users_names.get("online_users_names", [])
+    
+    if not players_data:
         await update.message.reply_text("No online players.")
         return
     
-    names_list = [user["name_clean"] for user in online_users_names.get("online_users_names", [])]
+    # Handle both formats: list of strings OR list of dicts with "name_clean"
+    if players_data and isinstance(players_data[0], dict):
+        # Format: [{"name_clean": "player1"}, {"name_clean": "player2"}]
+        names_list = [user.get("name_clean", "Unknown") for user in players_data]
+    else:
+        # Format: ["player1", "player2"]
+        names_list = players_data
+    
     names = "\n".join(names_list)
     await update.message.reply_text(f"Online players' usernames in minecraft are \n{names}")
-    users_pictures = ImageFeatures.generate_users_pictures(names_list)
-    if users_pictures is not None:
-        await update.message.reply_photo(users_pictures)
+    
+    # Try to send user pictures
+    try:
+        users_pictures = ImageFeatures.generate_users_pictures(names_list)
+        if users_pictures is not None:
+            await update.message.reply_photo(users_pictures)
+    except Exception as e:
+        logger.error(f"Error sending user pictures: {e}")
 
 def main() -> None:
     """Start the bot."""
