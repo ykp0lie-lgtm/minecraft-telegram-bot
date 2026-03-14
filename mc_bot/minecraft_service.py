@@ -5,9 +5,15 @@ def offline_server_handler(func):
     def wrapper(self, *args, **kwargs):
         response_json = self._get_response_json()
         
+        print(f"🔍 DEBUG - In offline_server_handler, response_json: {response_json}")
+        
         # Check if the server is online
         if not response_json.get("online", False):
-            error_msg = response_json.get("error", "Server is offline or unreachable")
+            error_msg = response_json.get("error", "Unknown error")
+            # If error_msg is None, make it more descriptive
+            if error_msg is None:
+                error_msg = "No data received from any API"
+            
             return {
                 "status": "error",
                 "message": f"⚠️ Server status: {error_msg}"
@@ -21,37 +27,89 @@ class Minecraft_Status:
         self.MINECRAFT_SERVER_ADDRESS = Config.MINECRAFT_SERVER_ADDRESS
     
     def _get_response_json(self):
+        print(f"\n🔍 DEBUG START - Server address: {self.MINECRAFT_SERVER_ADDRESS}")
+        
+        # Split address for APIs that need separate IP and port
+        if ':' in self.MINECRAFT_SERVER_ADDRESS:
+            ip, port = self.MINECRAFT_SERVER_ADDRESS.split(':')
+        else:
+            ip = self.MINECRAFT_SERVER_ADDRESS
+            port = '25565'
+        
+        print(f"🔍 DEBUG - IP: {ip}, Port: {port}")
+        
         # List of APIs to try in order
         apis = [
             f"https://api.mcstatus.io/v2/status/java/{self.MINECRAFT_SERVER_ADDRESS}",
             f"https://api.mcsrvstat.us/2/{self.MINECRAFT_SERVER_ADDRESS}",
-            f"https://mcapi.us/server/status?ip={self.MINECRAFT_SERVER_ADDRESS.split(':')[0]}&port={self.MINECRAFT_SERVER_ADDRESS.split(':')[1] if ':' in self.MINECRAFT_SERVER_ADDRESS else '25565'}",
-            f"https://api.minetools.eu/ping/{self.MINECRAFT_SERVER_ADDRESS.split(':')[0]}/{self.MINECRAFT_SERVER_ADDRESS.split(':')[1] if ':' in self.MINECRAFT_SERVER_ADDRESS else '25565'}",
+            f"https://mcapi.us/server/status?ip={ip}&port={port}",
+            f"https://api.minetools.eu/ping/{ip}/{port}",
+            # Add a simple test to see if we can reach anything
+            f"https://api.mcsrvstat.us/2/mc.hypixel.net"  # Test with a known working server
         ]
         
         # Try each API until one works
-        for api_url in apis:
+        for i, api_url in enumerate(apis):
             try:
-                print(f"Trying API: {api_url}")  # Debug output
-                response = requests.get(api_url, timeout=5)  # 5 second timeout
-                print(f"Response status: {response.status_code}")  # Debug output
+                print(f"\n🔍 DEBUG - Trying API #{i+1}: {api_url}")
+                
+                # Make the request with a timeout
+                response = requests.get(api_url, timeout=10)
+                print(f"🔍 DEBUG - Status code: {response.status_code}")
+                print(f"🔍 DEBUG - Response headers: {dict(response.headers)}")
+                print(f"🔍 DEBUG - Response text (first 500 chars): {response.text[:500]}")
                 
                 if response.status_code == 200:
-                    response_json = response.json()
-                    
-                    # Different APIs return different formats, let's normalize them
-                    normalized_data = self._normalize_api_response(api_url, response_json)
-                    
-                    if normalized_data and normalized_data.get("online") is not None:
-                        print(f"Success with API: {api_url}")  # Debug output
-                        return normalized_data
+                    try:
+                        response_json = response.json()
+                        print(f"🔍 DEBUG - JSON parsed successfully")
+                        print(f"🔍 DEBUG - JSON keys: {response_json.keys()}")
                         
+                        # Check if this is the test API (Hypixel)
+                        if "mc.hypixel.net" in api_url:
+                            print(f"🔍 DEBUG - TEST API RESULT (Hypixel): online={response_json.get('online')}")
+                            print("✅ This proves the API itself works!")
+                            continue  # Still try other APIs for your server
+                        
+                        normalized_data = self._normalize_api_response(api_url, response_json)
+                        
+                        if normalized_data:
+                            print(f"🔍 DEBUG - Normalized data: {normalized_data}")
+                            if normalized_data.get("online") is True:
+                                print(f"✅ SUCCESS! API #{i+1} works!")
+                                return normalized_data
+                            else:
+                                print(f"❌ API #{i+1} reports server offline: {normalized_data.get('error')}")
+                        else:
+                            print(f"❌ API #{i+1} normalization failed")
+                            
+                    except Exception as json_err:
+                        print(f"🔍 DEBUG - JSON parse error: {str(json_err)}")
+                else:
+                    print(f"❌ API #{i+1} returned non-200 status")
+                    
+            except requests.exceptions.Timeout:
+                print(f"❌ API #{i+1} timed out after 10 seconds")
+            except requests.exceptions.ConnectionError:
+                print(f"❌ API #{i+1} connection error - network issue")
             except Exception as e:
-                print(f"API {api_url} failed: {str(e)}")  # Debug output
-                continue
+                print(f"❌ API #{i+1} failed with error: {str(e)}")
+                import traceback
+                traceback.print_exc()
         
         # If all APIs fail, return a standardized offline response
-        print("All APIs failed, returning offline status")
+        print("\n❌ ALL APIS FAILED - Returning offline status")
+        print(f"🔍 DEBUG - Final check: Can we reach the internet?")
+        try:
+            test = requests.get("https://api.mcsrvstat.us/2/mc.hypixel.net", timeout=5)
+            print(f"🔍 DEBUG - Internet check: {test.status_code}")
+            if test.status_code == 200:
+                print("✅ Internet is working, APIs just don't like your server")
+            else:
+                print("❌ Internet check failed")
+        except Exception as e:
+            print(f"🔍 DEBUG - Internet check FAILED: {str(e)} - possible network issue in Railway!")
+        
         return {
             "online": False,
             "players": {
@@ -60,7 +118,7 @@ class Minecraft_Status:
                 "list": []
             },
             "version": "Unknown",
-            "error": "Could not connect to any status API"
+            "error": f"Could not connect to any status API for {self.MINECRAFT_SERVER_ADDRESS}"
         }
 
     def _normalize_api_response(self, api_url, response_json):
