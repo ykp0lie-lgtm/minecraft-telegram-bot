@@ -4,11 +4,12 @@ from config import Config
 def offline_server_handler(func):
     def wrapper(self, *args, **kwargs):
         response_json = self._get_response_json()
-        if response_json.get("online") is False:
-            return {
-                "status": "error",
-                "message": "lol, the server's down."
-            }
+      #  if response_json.get("online") is False:
+       #     return {
+        #        "status": "error",
+         #       "message": "lol, the server's down."
+          #  }
+        print(f"DEBUG - Server response: {response_json}")
         return func(self, response_json, *args, **kwargs)
     return wrapper
 
